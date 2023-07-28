@@ -1,36 +1,41 @@
 class Counter {
     constructor(id) {
-        this.id = id
-        this.value = 0
+        this.id = id;
+        this.value = 0;
+        this.time = 0;
     }
-    inc(val) {
-        console.log("added by ", val)
-        this.value += val
+
+    step() {
+        this.time++;
     }
-    dec(val) {
-        console.log("deducted by ", val)
-        this.value -= val
+
+    inc() {
+        this.value++;
+        this.step();
     }
+
+    dec() {
+        this.value--;
+        this.step();
+    }
+
+    merge(o) {
+        if (o.time > this.time || (o.time === this.time && o.value > this.value)) {
+            this.value = o.value;
+            this.time = o.time;
+        }
+    }
+
     print() {
-        console.log(this.name, ": value is ", this.value)
+        return `Counter_${this.id}:${this.value}:${this.time}`;
     }
-    // merge(sender) {
-    //     if (this.value < sender.value) {
-    //         this.value = sender.value
-    //         console.log("Merged from replica " + other.id + " to value:" + this.value)
-    //     }
-    // }
-    merge(o_id, o_value) {
-        // console.log("this val" + this.value)
-        // console.log("other val" + o_value)
-        if (this.value < o_value) {
-            this.value = o_value
-            console.log("Merged to value:" + this.value + " of replica:" + o_id)
-        }
-        else {
-            console.log("Not updated")
-            console.log(this.value)
-        }
+
+    toByteArray() {
+        const buffer = Buffer.alloc(12);
+        buffer.writeUInt32LE(this.id, 0);
+        buffer.writeInt32LE(this.value, 4);
+        buffer.writeUInt32LE(this.time, 8);
+        return buffer;
     }
 }
 

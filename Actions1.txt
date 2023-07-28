@@ -1,0 +1,16 @@
+Inc
+3
+Inc
+2
+Dec
+2
+Dec
+Inc
+Broadcast
+Inc
+Inc
+Inc
+Inc
+Inc
+Inc
+Broadcast

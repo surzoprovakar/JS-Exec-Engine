@@ -1,54 +1,113 @@
 const net = require('net')
+const fs = require('fs')
+var Counter = require('./counter')
 
-const clients = []
+let conns = [] // Move the conns array declaration to the global scope
 
-const server = net.createServer((socket) => {
-    console.log('New client connected');
+function establishConnections(addresses) {
+    //   console.log("Establishing connections with " + addresses)
 
-    // Store the client socket in an array
-    clients.push(socket);
+    return addresses.map(address => {
+        const [host, port] = address.split(':')
+        const conn = net.createConnection({ host, port: parseInt(port) })
+        conn.setTimeout(5000)
 
-    // Handle data received from the client
-    socket.on('data', (data) => {
-        // console.log('Received from client:', data.toString());
+        conn.on('error', () => {
+            console.log(`Error connecting to ${address}`)
+            conn.end()
+        })
 
-        // // Broadcast the message to all other connected clients (except the sender)
-        // clients.forEach((client) => {
-        //     if (client !== socket && client.writable) {
-        //         client.write(data, (err) => {
-        //             if (err) {
-        //                 console.error('Error writing data to client:', err);
-        //             }
-        //         });
-        //     }
-        // });
+        return conn
+    })
+}
+function broadcast(conns, content) {
+    conns.forEach(conn => {
+        conn.write(content)
+    })
+}
 
-        const senderIndex = clients.indexOf(socket);
-        const receiverIndex = senderIndex === 0 ? 1 : 0;
-        const receiver = clients[receiverIndex];
+function fromByteArray(buffer) {
+    const id = buffer.readUInt32LE(0)
+    const value = buffer.readInt32LE(4)
+    const time = buffer.readUInt32LE(8)
 
-        receiver.write(data)
-    });
+    return new Counter(id, value, time)
+}
 
-    // Handle client disconnection
-    socket.on('end', () => {
-        console.log('Client disconnected');
-        // Remove the client socket from the array
-        const index = clients.indexOf(socket);
-        if (index !== -1) {
-            clients.splice(index, 1);
+function do_actions(actions) {
+
+    // Sleep for 10 secs, so other replicas have time to get started
+    setTimeout(() => {
+        console.log("Starting to do_actions")
+
+        for (const action of actions) {
+            if (action === "Inc") {
+                counter.inc()
+                console.log(counter.print())
+            } else if (action === "Dec") {
+                counter.dec()
+                console.log(counter.print())
+            } else if (action === "Broadcast") {
+                console.log("Processing Broadcast")
+                console.log("Hosts from file:", hosts)
+                if (hosts.length > 0) {
+                    conns = establishConnections(hosts)
+                }
+                console.log(`About to broadcast ${counter.print()}`)
+                broadcast(conns, counter.toByteArray())
+            } else {
+                const number = parseInt(action)
+                if (!isNaN(number)) {
+                    setTimeout(() => {
+                        console.log(`Delay of ${number} seconds.`)
+                    }, number * 1000)
+                }
+            }
         }
-    });
-
-    // Handle errors
-    socket.on('error', (err) => {
-        console.error('Socket error:', err);
-    });
-});
-
-const PORT = 3000;
-server.listen(PORT, () => {
-    console.log(`Server started on port ${PORT}`);
-});
+    }, 10000) // Delay execution to allow other replicas to get started
+}
 
 
+
+if (process.argv.length !== 6) {
+    console.log("Usage: node server.js counter_id ip_address crdt_socket_server Addresses1.txt Actions1.txt")
+    process.exit(1)
+}
+const id = parseInt(process.argv[2])
+const ip_address = process.argv[3]
+// const crdt_socket_server = process.argv[4]
+const Addresses1File = process.argv[4]
+// console.log(Addresses1File)
+const Actions1File = process.argv[5]
+
+const counter = new Counter(id)
+// let conns = []
+
+const connType = 'tcp'
+console.log("Starting " + connType + " server on " + ip_address)
+const server = net.createServer(conn => {
+    let buffer = Buffer.alloc(12)
+
+    conn.on('data', data => {
+        data.copy(buffer)
+        const tempCounter = fromByteArray(buffer)
+        counter.merge(tempCounter)
+    })
+
+    conn.on('error', () => {
+        console.log("Client left.")
+        conn.end()
+    })
+})
+
+server.on('listening', () => {
+    // server.close()
+    server.listen(ip_address)
+})
+
+const hosts = fs.readFileSync(Addresses1File, 'utf8', 'r').trim().split('\n')
+// console.log(hosts)
+const actions = fs.readFileSync(Actions1File, 'utf8', 'r').trim().split('\n')
+// console.log(actions)
+
+do_actions(actions)
