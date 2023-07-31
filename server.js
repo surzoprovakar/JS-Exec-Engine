@@ -2,11 +2,9 @@ const net = require('net')
 const fs = require('fs')
 var Counter = require('./counter')
 
-let conns = [] // Move the conns array declaration to the global scope
+let conns = []
 
 function establishConnections(addresses) {
-    //   console.log("Establishing connections with " + addresses)
-
     return addresses.map(address => {
         const [host, port] = address.split(':')
         const conn = net.createConnection({ host, port: parseInt(port) })
@@ -21,71 +19,75 @@ function establishConnections(addresses) {
     })
 }
 function broadcast(conns, content) {
+    console.log("cons: " + conns)
     conns.forEach(conn => {
         conn.write(content)
     })
 }
 
-function fromByteArray(buffer) {
-    const id = buffer.readUInt32LE(0)
-    const value = buffer.readInt32LE(4)
-    const time = buffer.readUInt32LE(8)
-
-    return new Counter(id, value, time)
-}
-
 function do_actions(actions) {
+    delay(5000)
+    console.log("Starting to do_actions")
 
-    // Sleep for 10 secs, so other replicas have time to get started
-    setTimeout(() => {
-        console.log("Starting to do_actions")
-
-        for (const action of actions) {
-            if (action === "Inc") {
-                counter.inc()
-                console.log(counter.print())
-            } else if (action === "Dec") {
-                counter.dec()
-                console.log(counter.print())
-            } else if (action === "Broadcast") {
-                console.log("Processing Broadcast")
-                console.log("Hosts from file:", hosts)
-                if (hosts.length > 0) {
-                    conns = establishConnections(hosts)
-                }
-                console.log(`About to broadcast ${counter.print()}`)
-                broadcast(conns, counter.toByteArray())
-            } else {
-                const number = parseInt(action)
-                if (!isNaN(number)) {
-                    setTimeout(() => {
-                        console.log(`Delay of ${number} seconds.`)
-                    }, number * 1000)
-                }
+    for (const action of actions) {
+        if (action === "Inc") {
+            counter.inc()
+            console.log(counter.print())
+        } else if (action === "Dec") {
+            counter.dec()
+            console.log(counter.print())
+        } else if (action === "Broadcast") {
+            console.log("Processing Broadcast")
+            // console.log("Hosts from file:", hosts)
+            if (hosts.length > 0) {
+                conns = establishConnections(hosts)
+            }
+            console.log(`About to broadcast ${counter.print()}`)
+            broadcast(conns, counter.toByteArray())
+        } else {
+            const number = parseInt(action)
+            if (!isNaN(number)) {
+                delay(number * 1000)
+                console.log(`Delay of ${number} seconds.`)
             }
         }
-    }, 10000) // Delay execution to allow other replicas to get started
+    }
+
 }
 
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 
 if (process.argv.length !== 6) {
     console.log("Usage: node server.js counter_id ip_address crdt_socket_server Addresses1.txt Actions1.txt")
     process.exit(1)
 }
+
 const id = parseInt(process.argv[2])
 const ip_address = process.argv[3]
+const [hst, prt] = ip_address.split(':')
+// console.log("host: " + hst)
+// console.log("port: " + prt)
 // const crdt_socket_server = process.argv[4]
 const Addresses1File = process.argv[4]
 // console.log(Addresses1File)
 const Actions1File = process.argv[5]
 
+
 const counter = new Counter(id)
 // let conns = []
+const hosts = fs.readFileSync(Addresses1File, 'utf8', 'r').trim().split('\n')
+// console.log(hosts)
+const actions = fs.readFileSync(Actions1File, 'utf8', 'r').trim().split('\n')
+// console.log(actions)
 
 const connType = 'tcp'
 console.log("Starting " + connType + " server on " + ip_address)
+
 const server = net.createServer(conn => {
+    console.log("server created")
     let buffer = Buffer.alloc(12)
 
     conn.on('data', data => {
@@ -98,16 +100,19 @@ const server = net.createServer(conn => {
         console.log("Client left.")
         conn.end()
     })
+    console.log("server running")
 })
 
 server.on('listening', () => {
+    const address = server.address()
+    console.log(`Server is listening on address ${address.address} and port ${address.port}`)
     // server.close()
-    server.listen(ip_address)
+    // server.listen(host, port)
 })
 
-const hosts = fs.readFileSync(Addresses1File, 'utf8', 'r').trim().split('\n')
-// console.log(hosts)
-const actions = fs.readFileSync(Actions1File, 'utf8', 'r').trim().split('\n')
-// console.log(actions)
+server.listen(hst, prt, () => {
+    // const address = server.address()
+    // console.log(`Server is listening on address ${hst} and port ${prt}`)
+})
 
 do_actions(actions)
