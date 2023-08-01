@@ -1,6 +1,7 @@
 const net = require('net')
 const fs = require('fs')
 var Counter = require('./counter')
+const { Console } = require('console')
 
 const defaultPort = 3000
 const id = parseInt(process.argv[2])
@@ -9,6 +10,7 @@ const AddressesFile = process.argv[4]
 const ActionsFile = process.argv[5]
 
 const hosts = fs.readFileSync(AddressesFile, 'utf8', 'r').trim().split('\n')
+console.log("\n" + hosts + "\n")
 const actions = fs.readFileSync(ActionsFile, 'utf8', 'r').trim().split('\n')
 
 const counter = new Counter(id)
@@ -21,13 +23,15 @@ function sleep(milliseconds) {
     } while (currentDate - date < milliseconds)
 }
 
-function establishConnections() {
-    const server = net.createServer()
+function startServer() {
+
+    const server = net.createServer();
 
     server.on('connection', socket => {
         console.log('Client connected.')
 
         socket.on('data', data => {
+            console.log("received data from others")
             let buffer = Buffer.alloc(12)
             data.copy(buffer)
             const tempCounter = counter.fromByteArray(buffer)
@@ -45,26 +49,60 @@ function establishConnections() {
 
     server.listen(defaultPort, ip_address, () => {
         console.log(`Server is running on ${ip_address}:${defaultPort}`)
+        do_actions(actions);
     })
 }
 
+const client = new net.Socket()
+var connected = false;
+
+function sendToOthers(message) {
+    hosts.forEach(host => {
+        if (!connected) {
+            console.log(`Connecting to ${host}:${defaultPort}...`);
+            client.connect(defaultPort, host, () => {
+              console.log(`Connected to ${host}:${defaultPort}.`);
+            });
+            client.on('data', data => {
+                console.log('Server response:', data.toString())
+            })
+            client.on('end', () => {
+                console.log('Disconnected from server.')
+            })
+        
+            client.on('error', error => {
+                console.error('Error:', error.message)
+            })
+            client.write(message);
+            connected = true;
+          } else {
+            client.write(message);
+          }
+
+          
+    })
+}
 function broadcast(msg) {
-    const client = net.createConnection({ port: defaultPort }, () => {
-        console.log('Connected to server.')
-        client.write(msg)
+    hosts.forEach(host => {
+        console.log("host:" + host)
+        const client = net.createConnection({ host, port: defaultPort }, () => {
+            console.log('Connected to server.')
+            client.write(msg)
+        })
+    
+        client.on('data', data => {
+            console.log('Server response:', data.toString())
+        })
+    
+        client.on('end', () => {
+            console.log('Disconnected from server.')
+        })
+    
+        client.on('error', error => {
+            console.error('Error:', error.message)
+        })
     })
-
-    client.on('data', data => {
-        console.log('Server response:', data.toString())
-    })
-
-    client.on('end', () => {
-        console.log('Disconnected from server.')
-    })
-
-    client.on('error', error => {
-        console.error('Error:', error.message)
-    })
+    
 }
 
 function do_actions(actions) {
@@ -81,10 +119,9 @@ function do_actions(actions) {
         } else if (action === "Broadcast") {
             console.log("Processing Broadcast")
             if (hosts.length > 0) {
-                establishConnections()
+                console.log(`About to broadcast ${counter.print()}`)
+                sendToOthers(counter.toByteArray())
             }
-            console.log(`About to broadcast ${counter.print()}`)
-            broadcast(counter.toByteArray())
         } else {
             const number = parseInt(action)
             if (!isNaN(number)) {
@@ -97,4 +134,5 @@ function do_actions(actions) {
 }
 
 
-do_actions(actions)
+startServer()
+// do_actions(actions)
