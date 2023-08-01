@@ -21,8 +21,12 @@ class Counter {
 
     merge(o) {
         if (o.time > this.time || (o.time === this.time && o.value > this.value)) {
+            console.log("Merged to the value of counter:" + o.id)
+            console.log("Updated value:" + o.value)
             this.value = o.value
             this.time = o.time
+        } else {
+            console.log("Update not required")
         }
     }
 

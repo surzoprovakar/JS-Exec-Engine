@@ -1,1 +1,1 @@
-node server.js 2 localhost:8082 Addresses2.txt Actions2.txt
+node replica.js 2 127.0.0.2 Addresses2.txt Actions2.txt
