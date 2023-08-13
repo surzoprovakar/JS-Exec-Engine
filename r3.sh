@@ -1,1 +1,1 @@
-node replica.js 3 127.0.0.3 Addresses3.txt Actions3.txt
+node server.js 3 localhost:8083 Addresses3.txt Actions3.txt

@@ -1,1 +1,1 @@
-node replica.js 1 127.0.0.1 Addresses1.txt Actions1.txt
+node server.js 1 localhost:8081 Addresses1.txt Actions1.txt

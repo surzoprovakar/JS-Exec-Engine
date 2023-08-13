@@ -1,3 +1,5 @@
+const { Buffer } = require('buffer')
+
 class Counter {
     constructor(id) {
         this.id = id
@@ -19,6 +21,18 @@ class Counter {
         this.step()
     }
 
+    getId() {
+        return this.id
+    }
+
+    getValue() {
+        return this.value
+    }
+
+    getTime() {
+        return this.time
+    }
+
     merge(o) {
         if (o.time > this.time || (o.time === this.time && o.value > this.value)) {
             console.log("Merged to the value of counter:" + o.id)
@@ -28,6 +42,10 @@ class Counter {
         } else {
             console.log("Update not required")
         }
+    }
+
+    print() {
+        return `Counter_${this.id}:${this.value}:${this.time}`
     }
 
     print() {
@@ -52,20 +70,6 @@ class Counter {
         tmp.time = time
         return tmp
     }
-
 }
 
 module.exports = Counter
-
-// testing
-// let c = new Counter("1")
-// c.inc()
-// c.inc()
-// c.dec()
-// c.inc()
-// console.log(c.print())
-// var buf = c.toByteArray()
-
-// let tmp = c.fromByteArray(buf)
-
-// console.log(tmp.print())
