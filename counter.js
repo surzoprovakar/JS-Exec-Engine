@@ -1,5 +1,26 @@
 const { Buffer } = require('buffer')
 
+class Mutex {
+    constructor() {
+        this.locked = false
+    }
+
+    lock() {
+        if (!this.locked) {
+            this.locked = true
+            return true
+        } else {
+            return false
+        }
+    }
+
+    unlock() {
+        this.locked = false
+    }
+}
+
+const mutex = new Mutex()
+
 class Counter {
     constructor(id) {
         this.id = id
@@ -12,13 +33,17 @@ class Counter {
     }
 
     inc() {
+        mutex.lock()
         this.value++
         this.step()
+        mutex.unlock()
     }
 
     dec() {
+        mutex.lock()
         this.value--
         this.step()
+        mutex.unlock()
     }
 
     getId() {
@@ -34,6 +59,7 @@ class Counter {
     }
 
     merge(o) {
+        mutex.lock()
         if (o.time > this.time || (o.time === this.time && o.value > this.value)) {
             console.log("Merged to the value of counter:" + o.id)
             console.log("Updated value:" + o.value)
@@ -42,10 +68,7 @@ class Counter {
         } else {
             console.log("Update not required")
         }
-    }
-
-    print() {
-        return `Counter_${this.id}:${this.value}:${this.time}`
+        mutex.unlock()
     }
 
     print() {

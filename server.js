@@ -8,6 +8,11 @@ let hosts = []
 let counter
 let conns
 
+function sleep(seconds) {
+    var e = new Date().getTime() + (seconds * 1000)
+    while (new Date().getTime() <= e) { }
+}
+
 async function doActions(actions) {
     await new Promise(resolve => setTimeout(resolve, 10000)) // Sleep for 10 seconds
 
@@ -33,6 +38,67 @@ async function doActions(actions) {
     }
 }
 
+function isByteArray(array) {
+    if (array && array.byteLength !== undefined) return true;
+    return false;
+}
+
+function performRPC(socket) {
+    // await new Promise(resolve => setTimeout(resolve, 10000))
+    // console.log('Starting to do_actions')
+
+    socket.on('data', async data => {
+        // console.log("data is " + JSON.parse(data))
+        // console.log(isByteArray(data))
+        // console.log(new TextDecoder().decode(data))
+
+        const buffer = Buffer.alloc(12)
+        data.copy(buffer)
+        // console.log(buffer)
+        const tempCounter = counter.fromByteArray(buffer)
+        // console.log(tempCounter.print())
+        // console.log(typeof(tempCounter.getId()))
+        if (tempCounter.getId() != 1 && tempCounter.getId() != 2 && tempCounter.getId() != 3) {
+            try {
+                const requestData = JSON.parse(data)
+                const { method } = requestData
+                // console.log("method is " + method)
+                if (method === 'Inc') {
+                    counter.inc()
+                    console.log(counter.print())
+                    // socket.write(JSON.stringify(result))
+                } else if (method === 'Dec') {
+                    counter.dec()
+                    console.log(counter.print())
+                    // socket.write(JSON.stringify(result))
+                } else if (method === 'Broadcast') {
+                    if (!conns) {
+                        conns = await establishConnections(hosts)
+                    }
+                    console.log(`About to broadcast ${counter.print()}`)
+                    broadcast(conns, counter.toByteArray())
+                }
+                else if (!isNaN(method)) {
+                    // socket.write(JSON.stringify({ error: 'Unknown method' }))
+                    const number = parseInt(method)
+                    //new Promise(resolve => setTimeout(resolve, number * 1000))
+                    sleep(number)
+                    console.log("Delay of " + number + " seconds")
+                }
+            } catch (error) {
+                socket.write(JSON.stringify({ error: 'Invalid JSON data' }))
+            }
+        } else {
+            console.log("About to merge")
+            counter.merge(tempCounter)
+        }
+    })
+
+    socket.on('end', () => {
+        console.log('Client disconnected')
+    })
+}
+
 async function main() {
     const input = process.argv.slice(2)
     // console.log(input)
@@ -53,11 +119,12 @@ async function main() {
     console.log(`Starting server on ${address}:${port}`)
     const server = net.createServer()
 
-    server.on('connection', handleConnection)
+    server.on('connection', performRPC)
+    // server.on('connection', handleConnection)
 
     server.listen({ host: address, port: port })
 
-    await doActions(actions)
+    // await doActions(actions)
 }
 
 async function readFile(filename) {
