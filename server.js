@@ -1,5 +1,6 @@
 const net = require('net')
 const fs = require('fs').promises
+const fs2 = require('fs')
 var Counter = require('./counter')
 
 const { establishConnections, broadcast } = require('./client')
@@ -13,6 +14,38 @@ function sleep(seconds) {
     while (new Date().getTime() <= e) { }
 }
 
+function formatDateTime(date) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+
+    return `[${year}-${month}-${day} ${hours}:${minutes}:${seconds}]`
+}
+
+function writeLog(date, event) {
+    var fileName = "Logs/sample.log"
+    if (!fs2.existsSync("Logs")) {
+        fs2.mkdirSync("Logs", { recursive: true })
+    }
+    fs2.writeFileSync(fileName, date + " " + event, { flag: 'a' })
+}
+
+function currentTime() {
+    const now = new Date()
+    const formattedDateTime = formatDateTime(now)
+    return formattedDateTime
+}
+
+function eventData(id, opt, type, o_id) {
+    if (type === "local") {
+        return id + " executes " + opt + "\n"
+    } else {
+        return id + " receives sync req from " + o_id + "\n"
+    }
+}
 async function doActions(actions) {
     await new Promise(resolve => setTimeout(resolve, 10000)) // Sleep for 10 seconds
 
@@ -38,44 +71,37 @@ async function doActions(actions) {
     }
 }
 
-function isByteArray(array) {
-    if (array && array.byteLength !== undefined) return true;
-    return false;
-}
-
 function performRPC(socket) {
-    // await new Promise(resolve => setTimeout(resolve, 10000))
-    // console.log('Starting to do_actions')
 
     socket.on('data', async data => {
-        // console.log("data is " + JSON.parse(data))
-        // console.log(isByteArray(data))
-        // console.log(new TextDecoder().decode(data))
-
         const buffer = Buffer.alloc(12)
         data.copy(buffer)
-        // console.log(buffer)
         const tempCounter = counter.fromByteArray(buffer)
-        // console.log(tempCounter.print())
-        // console.log(typeof(tempCounter.getId()))
         if (tempCounter.getId() != 1 && tempCounter.getId() != 2 && tempCounter.getId() != 3) {
             try {
                 const requestData = JSON.parse(data)
                 const { method } = requestData
                 // console.log("method is " + method)
+
+                var time = currentTime()
+                var event = eventData(counter.getId(), method, "local", null)
+
                 if (method === 'Inc') {
                     counter.inc()
                     console.log(counter.print())
+                    writeLog(time, event)
                     // socket.write(JSON.stringify(result))
                 } else if (method === 'Dec') {
                     counter.dec()
                     console.log(counter.print())
+                    writeLog(time, event)
                     // socket.write(JSON.stringify(result))
                 } else if (method === 'Broadcast') {
                     if (!conns) {
                         conns = await establishConnections(hosts)
                     }
                     console.log(`About to broadcast ${counter.print()}`)
+                    writeLog(time, event)
                     broadcast(conns, counter.toByteArray())
                 }
                 else if (!isNaN(method)) {
@@ -90,6 +116,9 @@ function performRPC(socket) {
             }
         } else {
             console.log("About to merge")
+            var time = currentTime()
+            var event = eventData(counter.getId(), "", "sync", tempCounter.getId())
+            writeLog(time, event)
             counter.merge(tempCounter)
         }
     })
